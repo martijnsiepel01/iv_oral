@@ -1,0 +1,10 @@
+# Ignore sample data
+samples/
+
+# Optional: model weights, checkpoints
+*.pt
+*.pth
+*.ckpt
+
+# Ignore Python cache
+__pycache__/
