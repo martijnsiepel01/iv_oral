@@ -3,22 +3,16 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-def get_sample_filenames(limit, only_iv, balanced, graph_type):
-    name = "samples_iv_oral"
-    name += "_only_iv" if only_iv else "_all"
-    name += "_balanced" if balanced else "_unbalanced"
-    name += f"_{limit}"
-    name += f"_graph_type_{graph_type}"
-    return (
-        PATHS.base_dir / f"{name}.pt",
-        PATHS.base_dir / f"{name}.parquet",
-    )
+# Dynamically determine base directory inside user's OneDrive
+USER_HOME = Path.home()
+BASE_PROJECT_DIR = USER_HOME / "OneDrive" / "PhD" / "iv_oral_v0.1" / "iv_oral_gnn"
+DATA_JSON_PATH = USER_HOME / "OneDrive" / "PhD" / "iv_oral_v0.1" / "data_raw" / "prescriptions" / "prescriptions_with_measurements_agg_1h_old.json"
 
 # Paths
 PATHS = SimpleNamespace(
-    data_json=Path(r"C:/Users/Martijn/OneDrive/PhD/iv_oral_v0.1/data_raw/prescriptions/prescriptions_with_measurements_agg_1h_old.json"),
-    base_dir=Path(r"C:/Users/Martijn/OneDrive/PhD/iv_oral_v0.1/iv_oral_gnn/samples"),
-    models=Path("models")
+    data_json=DATA_JSON_PATH,
+    base_dir=BASE_PROJECT_DIR / "samples",
+    models=BASE_PROJECT_DIR / "models"
 )
 
 # Sample generation config
@@ -51,5 +45,17 @@ SAMPLE_CONFIG.meta_path = PATHS.base_dir / f"{BASE_NAME}.parquet"
 # Create folders if needed
 PATHS.base_dir.mkdir(parents=True, exist_ok=True)
 PATHS.models.mkdir(parents=True, exist_ok=True)
+
+# Utility function
+def get_sample_filenames(limit, only_iv, balanced, graph_type):
+    name = "samples_iv_oral"
+    name += "_only_iv" if only_iv else "_all"
+    name += "_balanced" if balanced else "_unbalanced"
+    name += f"_{limit}"
+    name += f"_graph_type_{graph_type}"
+    return (
+        PATHS.base_dir / f"{name}.pt",
+        PATHS.base_dir / f"{name}.parquet",
+    )
 
 MISSING_VALUE = "NA"

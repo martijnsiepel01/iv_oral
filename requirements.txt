@@ -1,9 +1,10 @@
-matplotlib==3.10.3
-networkx==3.5
-numpy==2.3.0
+matplotlib==3.9.0
+networkx>=3.0,<3.3
+numpy==2.0.2
 pandas==2.3.0
-scikit_learn==1.7.0
+scikit_learn==1.6.0
 torch==2.7.1
 torch_geometric==2.6.1
 tqdm==4.67.1
 wandb==0.20.1
+pyarrow==20.0.0
