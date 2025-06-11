@@ -1,5 +1,6 @@
 # Ignore sample data
 samples/
+wandb/
 
 # Optional: model weights, checkpoints
 *.pt
