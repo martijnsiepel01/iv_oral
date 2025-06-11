@@ -3,6 +3,21 @@
 import argparse
 from types import SimpleNamespace
 from config import MODEL_CONFIG, SAMPLE_CONFIG, PATHS
+from config import get_sample_filenames
+
+# Update MODEL_CONFIG defaults
+MODEL_CONFIG.update({
+    "model_type": "GIN",
+    "emb_dim": 64,
+    "lr": 0.001,
+    "num_layers": 2,
+    "pooling": "concat",
+    "dropout": 0.0,
+    "optimizer": "AdamW",
+    "weight_decay": 0.0001,
+    "loss": "bce",
+    "binary": True,
+})
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train IV-to-Oral GNN")
@@ -28,31 +43,37 @@ def parse_args():
     parser.add_argument("--weight_decay", type=float, default=MODEL_CONFIG["weight_decay"])
 
     # Loss function
-    parser.add_argument("--loss", choices=["focal", "bce"], default=MODEL_CONFIG.get("loss", "focal"),
+    parser.add_argument("--loss", choices=["focal", "bce"], default=MODEL_CONFIG["loss"],
                         help="Loss function to use (focal or bce)")
     
     # Type of output
-    parser.add_argument("--binary", action="store_true", help="Use binary classification")
-    
+    parser.add_argument("--binary", dest="binary", action="store_true", help="Use binary classification")
+    parser.add_argument("--four_way", dest="binary", action="store_false", help="Use 4-way classification")
+    parser.set_defaults(binary=MODEL_CONFIG["binary"])
+
     # Hyperparameter search
     parser.add_argument("--grid_search", action="store_true", help="Run a predefined hyperparameter grid search")
     parser.add_argument("--search_epochs", type=int, default=10, help="Number of epochs per configuration during search")
+    parser.add_argument("--param_grid", type=str, help="Path to JSON/YAML describing the hyper-parameter grid")
+    
+    parser.add_argument("--graph_construction_type", type=int, default=1, help="Graph construction variation type, 1-3")
+
+    parser.add_argument("--downsample", action="store_true", help="Run downsample strategy")
 
     return parser.parse_args()
 
 def override_config_from_args(args):
-    # Update SAMPLE_CONFIG
-    SAMPLE_CONFIG.limit = args.limit
-    SAMPLE_CONFIG.balanced = not args.no_balance
-    SAMPLE_CONFIG.only_iv = args.only_iv
+    SAMPLE_CONFIG.limit     = args.limit
+    SAMPLE_CONFIG.balanced  = not args.no_balance
+    SAMPLE_CONFIG.only_iv   = args.only_iv
     SAMPLE_CONFIG.num_epochs = args.epochs
+    SAMPLE_CONFIG.downsample = args.downsample
 
-    # Update paths
-    from config import BASE_NAME
-    SAMPLE_CONFIG.samples_path = PATHS.base_dir / f"samples_iv_oral_only_iv_{args.limit}.pt"
-    SAMPLE_CONFIG.meta_path = PATHS.base_dir / f"samples_iv_oral_only_iv_{args.limit}.parquet"
+    pt_path, parquet_path = get_sample_filenames(args.limit, args.only_iv, not args.no_balance, args.graph_construction_type)
+    SAMPLE_CONFIG.samples_path = pt_path
+    SAMPLE_CONFIG.meta_path = parquet_path
+    SAMPLE_CONFIG.graph_type = args.graph_construction_type
 
-    # Update MODEL_CONFIG
     MODEL_CONFIG.update({
         "model_type": args.model_type,
         "emb_dim": args.emb_dim,
@@ -63,6 +84,16 @@ def override_config_from_args(args):
         "optimizer": args.optimizer,
         "weight_decay": args.weight_decay,
         "loss": args.loss,
+        "binary": args.binary,
+        "graph_construction_type": args.graph_construction_type
     })
-    
-    MODEL_CONFIG["binary"] = args.binary
+
+    # Return merged config (used for naming and tracking)
+    return {
+        **MODEL_CONFIG,
+        "limit": args.limit,
+        "only_iv": args.only_iv,
+        "balanced": not args.no_balance,
+        "epochs": args.epochs,
+        "downsample": args.downsample,
+    }

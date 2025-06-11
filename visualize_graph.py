@@ -134,7 +134,7 @@ with open(json_path, "r", encoding="utf-8") as f:
     data = json.load(f)
 
 # Load treatment and measurements
-selected_treatment, title = get_treatment_by_ids(data, "44", 1)
+selected_treatment, title = get_treatment_by_ids(data, "5", 1)
 selected_measurements = next(
     adm["measurements"]
     for adm in data["44"]["admissions"]

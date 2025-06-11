@@ -45,6 +45,12 @@ class GNNModel(nn.Module):
     def forward(self, data):
         x = data.x
         nt = self.node_type_emb(data.node_type_ids)
+        
+        if torch.any(data.node_type_ids >= self.node_type_emb.num_embeddings):
+            print("[FATAL] node_type_ids exceed embedding size!")
+        
+        if torch.all(nt == 0):
+            print("[WARN] All node type embeddings are zero")
 
         if torch.isnan(x).any():
             print("[ERROR] NaNs in input x")

@@ -1,8 +1,15 @@
 import pandas as pd
 import numpy as np
-    
-def encode(label_encoders, value, key):
-    return float(label_encoders[key].transform([str(value)])[0])
+from config import MISSING_VALUE    
+
+def encode(encoders, value, key):
+    val = str(value).strip() if value not in [None, "", "-"] else MISSING_VALUE
+    try:
+        return float(encoders[key].transform([val])[0])
+    except ValueError:
+        raise ValueError(f"[ENCODE ERROR] Unknown label '{val}' for key '{key}' in encoder. "
+                         f"Known classes: {list(encoders[key].classes_)}")
+
 
 def normalize_date(dt_str):
     return pd.to_datetime(dt_str).normalize()

@@ -28,7 +28,7 @@ def train(model, dataloader, optimizer, loss_fn, device):
         all_labels.append(y.cpu())
     return loss.item()
 
-def validate(model, dataloader, loss_fn, device, num_classes) -> tuple:
+def validate(model, dataloader, loss_fn, device, num_classes) -> dict:
     model.eval()
     all_logits, all_labels = [], []
     total_loss = 0
@@ -42,7 +42,7 @@ def validate(model, dataloader, loss_fn, device, num_classes) -> tuple:
             all_logits.append(torch.softmax(logits, dim=1).cpu())
             all_labels.append(y.cpu())
 
-    probs  = torch.cat(all_logits)             # [N,4]
+    probs  = torch.cat(all_logits)             # [N,2]
     y_true = torch.cat(all_labels).numpy()     # [N]
     y_pred = probs.argmax(dim=1).numpy()       # [N]
 
@@ -56,8 +56,25 @@ def validate(model, dataloader, loss_fn, device, num_classes) -> tuple:
         "auroc": roc_auc_score(
             np.eye(num_classes)[y_true], probs.numpy(), multi_class="ovr" if num_classes > 2 else "raise"
         ),
-        "confusion_matrix":   confusion_matrix(y_true, y_pred),
-        "report":     classification_report(y_true, y_pred, digits=3)
+        "confusion_matrix": confusion_matrix(y_true, y_pred),
+        "report": classification_report(y_true, y_pred, digits=3)
     }
+
+    # # ───────────────────────────────────────────────────────
+    # # Threshold sweep for binary classification (optional)
+    # # ───────────────────────────────────────────────────────
+    # if num_classes == 2:
+    #     from sklearn.metrics import precision_recall_fscore_support
+    #     probs_pos = probs[:, 1].numpy()  # confidence for class 1
+    #     thresholds = np.linspace(0.1, 0.9, 9)
+    #     sweep = []
+
+    #     print("\nThreshold sweep (binary class = switch on day+1):")
+    #     for t in thresholds:
+    #         y_pred_thresh = (probs_pos >= t).astype(int)
+    #         prec, rec, f1, _ = precision_recall_fscore_support(y_true, y_pred_thresh, average="binary", zero_division=0)
+    #         sweep.append((t, prec, rec, f1))
+    #         print(f"  Thr={t:.2f} | Precision={prec:.3f} | Recall={rec:.3f} | F1={f1:.3f}")
+    #     metrics["threshold_sweep"] = sweep
 
     return metrics

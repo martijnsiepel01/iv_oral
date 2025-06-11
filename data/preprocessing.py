@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from typing import Dict
 from tqdm import tqdm
+from config import MISSING_VALUE
 
 def cut_treatment_data_up_to_day_n(json_data, pid, adm_id, tr_id, day_n):
     cutoff = datetime.strptime(day_n, "%Y-%m-%d") + timedelta(days=1)
@@ -34,36 +35,47 @@ def cut_treatment_data_up_to_day_n(json_data, pid, adm_id, tr_id, day_n):
             return adm_cut
     return None
 
-def build_global_label_encoders(data: dict) -> Dict[str, LabelEncoder]:
+def build_global_label_encoders(data: dict) -> dict:
     print("Building label encoders")
-    values_per_key = {
-        "med": set(), "route": set(), "specialisme": set(), "groep": set(), "setting": set(),
-        "doel": set(), "locatie": set(), "info": set(), "materiaal": set(), "uitslag": set(),
-        "genus": set(), "microbe_cat": set()
+    values = {
+        "med": set(),
+        "route": set(),
+        "specialisme": set(),
+        "groep": set(),
+        "setting": set(),
+        "doel": set(),
+        "locatie": set(),
+        "info": set(),
+        "materiaal": set(),
+        "uitslag": set(),
+        "genus": set(),
+        "microbe_cat": set()
     }
-    for patient in tqdm(data.values(), desc="Iterating patients for global label encoders"):
-        for admission in patient.get("admissions", []):
-            for treatment in admission.get("treatments", []):
-                for p in treatment.get("prescriptions", []):
-                    values_per_key["med"].add(str(p.get("MedicatieStofnaam", "-")))
-                    values_per_key["route"].add(str(p.get("ToedieningsRoute", "-")))
-                    values_per_key["specialisme"].add(str(p.get("Specialisme", "-")))
-                    values_per_key["groep"].add(str(p.get("Specialisme_groep", "-")))
-                    values_per_key["setting"].add(str(p.get("community_or_hospital", "-")))
-                    values_per_key["doel"].add(str(p.get("doel", "-")))
-                    values_per_key["locatie"].add(str(p.get("locatie", "-")))
-                    values_per_key["info"].add(str(p.get("aanvullende_informatie", "-")))
-                for c in treatment.get("treatment_cultures", []):
-                    values_per_key["materiaal"].add(str(c["materiaal_catCustom"]))
-                    values_per_key["uitslag"].add(str(c["kweek_uitslagDef"]))
-                    genus_val = c.get("microbe_genus")
-                    values_per_key["genus"].add(str(genus_val) if genus_val else "NA")
-                    values_per_key["microbe_cat"].add(str(c["microbe_catCustom"]))
 
+    for pid, pat in data.items():
+        for adm in pat["admissions"]:
+            for tr in adm["treatments"]:
+                values["locatie"].add(tr.get("locatie", MISSING_VALUE))
+                values["doel"].add(tr.get("doel", MISSING_VALUE))
+                for p in tr.get("prescriptions", []):
+                    values["med"].add(p.get("MedicatieStofnaam", MISSING_VALUE))
+                    values["route"].add(p.get("ToedieningsRoute", MISSING_VALUE))
+                    values["specialisme"].add(p.get("Specialisme", MISSING_VALUE))
+                    values["groep"].add(p.get("Specialisme_groep", MISSING_VALUE))
+                    values["setting"].add(p.get("community_or_hospital", MISSING_VALUE))
+                    values["doel"].add(p.get("doel", MISSING_VALUE))
+                    values["locatie"].add(p.get("locatie", MISSING_VALUE))
+                    values["info"].add(p.get("aanvullende_informatie", MISSING_VALUE))
+                for c in tr.get("treatment_cultures", []):
+                    values["materiaal"].add(c.get("materiaal_catCustom", MISSING_VALUE))
+                    values["uitslag"].add(c.get("kweek_uitslagDef", MISSING_VALUE))
+                    values["genus"].add(str(c.get("microbe_genus")) if c.get("microbe_genus") else MISSING_VALUE)
+                    values["microbe_cat"].add(c.get("microbe_catCustom", MISSING_VALUE))
 
     encoders = {}
-    for key, values in tqdm(values_per_key.items(), desc="Fitting encoders"):
+    for key, val_set in values.items():
+        val_set.add(MISSING_VALUE)  # ensure fallback is encoded
         le = LabelEncoder()
-        le.fit(sorted(values))
+        le.fit(list(val_set))
         encoders[key] = le
     return encoders

@@ -5,5 +5,5 @@ from pipeline.run_training import run
 
 if __name__ == "__main__":
     args = parse_args()
-    override_config_from_args(args)
-    run()
+    config = override_config_from_args(args)  # merged config
+    run(config=config)  # pass this into get_model_name, wandb.init, etc.
