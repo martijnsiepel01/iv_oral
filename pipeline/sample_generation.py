@@ -7,7 +7,7 @@ from pathlib import Path as path
 
 from config import SAMPLE_CONFIG, PATHS
 from data.io import load_json_subset, load_json_subset_only_iv
-from data.labeling import label_iv_oral_switch_windows, earliest_switch_class
+from data.labeling import label_iv_oral_switch_windows, earliest_switch_class, label_long_iv_windows
 from data.preprocessing import cut_treatment_data_up_to_day_n, build_global_label_encoders
 from graph.builder import build_pyg_graph_with_all_features_1, build_pyg_graph_with_all_features_2, build_pyg_graph_with_all_features_3
 from config import MODEL_CONFIG
@@ -59,7 +59,7 @@ def load_or_generate_samples():
         df_meta = pd.read_parquet(SAMPLE_CONFIG.meta_path)
 
         # Relabel for binary classification if needed
-        if MODEL_CONFIG["binary"]:
+        if MODEL_CONFIG["binary"] and not SAMPLE_CONFIG.long_iv:
             print("Converting cached labels to binary...")
             new_samples, new_df_rows = [], []
             for (graph, label), row in zip(samples, df_meta.to_dict(orient="records")):
@@ -87,15 +87,19 @@ def load_or_generate_samples():
 
             for key, group in df_meta.groupby("key", sort=False):
                 group = group.sort_values("day_n")
-                no_switch_mask = group["switch_day+1"] == 0
-                switch_mask = group["switch_day+1"] == 1
+                if SAMPLE_CONFIG.long_iv:
+                    neg_mask = group["long_iv"] == 0
+                    pos_mask = group["long_iv"] == 1
+                else:
+                    neg_mask = group["switch_day+1"] == 0
+                    pos_mask = group["switch_day+1"] == 1
 
-                no_switch_indices = group[no_switch_mask].index.tolist()
-                keep_n = int(len(no_switch_indices) * 0.75)
-                kept_no_switch = no_switch_indices[keep_n:]
-                kept_switch = group[switch_mask].index.tolist()
+                neg_indices = group[neg_mask].index.tolist()
+                keep_n = int(len(neg_indices) * 0.75)
+                kept_neg = neg_indices[keep_n:]
+                kept_pos = group[pos_mask].index.tolist()
 
-                downsampled_idxs.extend(kept_no_switch + kept_switch)
+                downsampled_idxs.extend(kept_neg + kept_pos)
 
             downsampled_idxs = sorted(downsampled_idxs)
             df_meta = df_meta.loc[downsampled_idxs].reset_index(drop=True)
@@ -114,7 +118,11 @@ def load_or_generate_samples():
     for pid, pat in data.items():
         for adm in pat["admissions"]:
             for tr in adm["treatments"]:
-                for w in label_iv_oral_switch_windows(tr):
+                if SAMPLE_CONFIG.long_iv:
+                    windows = label_long_iv_windows(tr)
+                else:
+                    windows = label_iv_oral_switch_windows(tr)
+                for w in windows:
                     w.update({"pid": pid, "aid": adm["PatientContactId"], "tid": tr["treatment_id"]})
                     rows.append(w)
 
@@ -127,14 +135,16 @@ def load_or_generate_samples():
 
         filtered_rows = []
         for group_rows in grouped.values():
-            # Sort by day_n to ensure chronological order
             group_rows.sort(key=lambda r: r["day_n"])
-            non_switch_rows = [r for r in group_rows if not any(r[f"switch_on_day_n+{h}"] for h in range(1, 4))]
-            switch_rows = [r for r in group_rows if any(r[f"switch_on_day_n+{h}"] for h in range(1, 4))]
+            if SAMPLE_CONFIG.long_iv:
+                neg_rows = [r for r in group_rows if r["long_iv"] == 0]
+                pos_rows = [r for r in group_rows if r["long_iv"] == 1]
+            else:
+                neg_rows = [r for r in group_rows if not any(r[f"switch_on_day_n+{h}"] for h in range(1, 4))]
+                pos_rows = [r for r in group_rows if any(r[f"switch_on_day_n+{h}"] for h in range(1, 4))]
 
-            # Downsample: keep only last 25% of non-switch rows
-            keep_n = int(len(non_switch_rows) * 0.75)
-            filtered_rows.extend(non_switch_rows[keep_n:] + switch_rows)
+            keep_n = int(len(neg_rows) * 0.75)
+            filtered_rows.extend(neg_rows[keep_n:] + pos_rows)
 
         rows = filtered_rows
         print(f"→ Remaining rows after downsampling: {len(rows)}")
@@ -170,19 +180,27 @@ def load_or_generate_samples():
             raise ValueError("Invalid value for graph_construction_type")
             
 
-        label_int = earliest_switch_class(r, MODEL_CONFIG["binary"])
-        samples.append((graph, torch.tensor(label_int, dtype=torch.long)))
+        if SAMPLE_CONFIG.long_iv:
+            label_int = r["long_iv"]
+            samples.append((graph, torch.tensor(label_int, dtype=torch.long)))
+            row = {
+                "pid": r["pid"], "aid": r["aid"], "tid": r["tid"], "day_n": r["day_n"],
+                "long_iv": int(label_int),
+                "json_cut": cut,
+            }
+        else:
+            label_int = earliest_switch_class(r, MODEL_CONFIG["binary"])
+            samples.append((graph, torch.tensor(label_int, dtype=torch.long)))
+            row = {
+                "pid": r["pid"], "aid": r["aid"], "tid": r["tid"], "day_n": r["day_n"],
+                "no_switch_day+1": int(label_int == 0),
+                "switch_day+1":    int(label_int == 1),
+                "json_cut": cut,
+            }
 
-        row = {
-            "pid": r["pid"], "aid": r["aid"], "tid": r["tid"], "day_n": r["day_n"],
-            "no_switch_day+1": int(label_int == 0),
-            "switch_day+1":    int(label_int == 1),
-            "json_cut": cut,
-        }
-
-        if not MODEL_CONFIG["binary"]:
-            row["switch_day+2"] = int(label_int == 2)
-            row["switch_day+3"] = int(label_int == 3)
+            if not MODEL_CONFIG["binary"]:
+                row["switch_day+2"] = int(label_int == 2)
+                row["switch_day+3"] = int(label_int == 3)
 
         df_rows.append(row)
 
