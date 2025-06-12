@@ -21,7 +21,8 @@ SAMPLE_CONFIG = SimpleNamespace(
     balanced=True,
     only_iv=True,
     num_epochs=10,
-    graph_type=1
+    graph_type=1,
+    long_iv=False
 )
 
 # Model configuration
@@ -34,11 +35,13 @@ MODEL_CONFIG = {
     "dropout": 0.0,
     "optimizer": "AdamW",
     "weight_decay": 0.0,
-    "binary": True
+    "binary": True,
+    "long_iv": False
 }
 
 # Derived filenames
-BASE_NAME = f"samples_iv_oral_only_iv_{SAMPLE_CONFIG.limit}"
+BASE_NAME = "samples_long_iv" if SAMPLE_CONFIG.long_iv else "samples_iv_oral"
+BASE_NAME += f"_only_iv_{SAMPLE_CONFIG.limit}" if SAMPLE_CONFIG.only_iv else f"_all_{SAMPLE_CONFIG.limit}"
 SAMPLE_CONFIG.samples_path = PATHS.base_dir / f"{BASE_NAME}.pt"
 SAMPLE_CONFIG.meta_path = PATHS.base_dir / f"{BASE_NAME}.parquet"
 
@@ -47,8 +50,8 @@ PATHS.base_dir.mkdir(parents=True, exist_ok=True)
 PATHS.models.mkdir(parents=True, exist_ok=True)
 
 # Utility function
-def get_sample_filenames(limit, only_iv, balanced, graph_type):
-    name = "samples_iv_oral"
+def get_sample_filenames(limit, only_iv, balanced, graph_type, long_iv=False):
+    name = "samples_long_iv" if long_iv else "samples_iv_oral"
     name += "_only_iv" if only_iv else "_all"
     name += "_balanced" if balanced else "_unbalanced"
     name += f"_{limit}"

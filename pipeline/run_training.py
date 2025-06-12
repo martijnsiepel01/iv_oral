@@ -41,7 +41,8 @@ def get_model_name(config: dict) -> str:
         "only_iv": "iv",
         "balanced": "bal",
         "downsample": "ds",
-        "graph_construction_type": "gt"
+        "graph_construction_type": "gt",
+        "long_iv": "liv"
     }
 
     config_str = "_".join(f"{short_keys.get(k, k)}-{sanitize(v)}" for k, v in sorted(config.items()))

@@ -60,6 +60,8 @@ def parse_args():
 
     parser.add_argument("--downsample", action="store_true", help="Run downsample strategy")
 
+    parser.add_argument("--long_iv", action="store_true", help="Predict long IV continuation (5 days)")
+
     return parser.parse_args()
 
 def override_config_from_args(args):
@@ -69,10 +71,17 @@ def override_config_from_args(args):
     SAMPLE_CONFIG.num_epochs = args.epochs
     SAMPLE_CONFIG.downsample = args.downsample
 
-    pt_path, parquet_path = get_sample_filenames(args.limit, args.only_iv, not args.no_balance, args.graph_construction_type)
+    pt_path, parquet_path = get_sample_filenames(
+        args.limit,
+        args.only_iv,
+        not args.no_balance,
+        args.graph_construction_type,
+        args.long_iv,
+    )
     SAMPLE_CONFIG.samples_path = pt_path
     SAMPLE_CONFIG.meta_path = parquet_path
     SAMPLE_CONFIG.graph_type = args.graph_construction_type
+    SAMPLE_CONFIG.long_iv = args.long_iv
 
     MODEL_CONFIG.update({
         "model_type": args.model_type,
@@ -84,8 +93,9 @@ def override_config_from_args(args):
         "optimizer": args.optimizer,
         "weight_decay": args.weight_decay,
         "loss": args.loss,
-        "binary": args.binary,
-        "graph_construction_type": args.graph_construction_type
+        "binary": True if args.long_iv else args.binary,
+        "graph_construction_type": args.graph_construction_type,
+        "long_iv": args.long_iv
     })
 
     # Return merged config (used for naming and tracking)
@@ -96,4 +106,5 @@ def override_config_from_args(args):
         "balanced": not args.no_balance,
         "epochs": args.epochs,
         "downsample": args.downsample,
+        "long_iv": args.long_iv,
     }
